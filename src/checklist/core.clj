@@ -2,9 +2,11 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str])
   (:use [clojure.pprint]
+        [clojure.tools.cli :only [cli]]
         [org.satta.glob]
         [dk.ative.docjure.spreadsheet])
-  (:import [org.apache.poi.ss.usermodel CellStyle]))
+  (:import [org.apache.poi.ss.usermodel CellStyle])
+  (:gen-class true))
 
 (defn- load-md-files
   "Load all markdown files in the specified directory,
@@ -103,3 +105,16 @@
        (map gen-excel-rows)
        (reduce into [])
        (gen-excel file-name)))
+
+(defn -main [& args]
+  (let [[opts args banner]
+        (cli args)
+        dir (first args)
+        filename (second args)]
+    (if-not (and
+             (= (count args) 2)
+             (.endsWith filename ".xlsx")) 
+      (do
+        (println "")
+        (println "Usage: checklist <markdown files dir> <filename for generated excel (.xlsx)>"))
+      (checklist-to-excel dir filename))))
