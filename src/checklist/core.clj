@@ -15,8 +15,8 @@
        #(if (not (str/blank? %2))
           (conj %1 (str/trim %2)) %1) [] (line-seq rdr)))))
 
-(defn- make-check-list [title]
-  (atom {:title title :items {}}))
+(defn- make-checklist [title]
+  (atom {:title title :items (sorted-map)}))
 
 (defn- add-item!
   ([ckl name] (swap! ckl assoc-in [:items name] []) ckl)
@@ -50,12 +50,35 @@
         :else (when-not (re-find #"^-+" line)
                 (do
                   (cl-stack stack-of-ckl)
-                  (let [ckl (make-check-list line)]
+                  (let [ckl (make-checklist line)]
                     (.push stack-of-ckl ckl)
                     (.add result ckl))))))
      result))
 
-(defn- gen-excel
+(defn- gen-rows
+  "Generate excel rows from parsed markdow files data."
   [^java.util.List parsed]
-  (doseq [ckl parsed]
-    ))
+  (let [rows (atom [])]
+    (doseq [ckl parsed]
+      (let [title (:title @ckl)
+            items (:items @ckl)
+            ks (keys items)]
+        (doseq [k ks]
+          (let [v (get items k)]
+            (if (> (count v) 0)
+              (doseq [item v]
+                (swap! rows conj [title k item])))))))
+    @rows))
+
+(defn- gen-excel [file-name rows]
+  (let [wb (create-workbook "checklist" rows)]
+    (do
+      (save-workbook! file-name wb))))
+
+(defn checklist-to-excel [dir file-name]
+  (->> (load-md-files dir)
+       (map parse-md-vec)
+       (map gen-rows)
+       (reduce into [])
+       (gen-excel file-name)))
+
