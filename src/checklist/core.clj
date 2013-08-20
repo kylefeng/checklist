@@ -3,7 +3,8 @@
             [clojure.string :as str])
   (:use [clojure.pprint]
         [org.satta.glob]
-        [dk.ative.docjure.spreadsheet]))
+        [dk.ative.docjure.spreadsheet])
+  (:import [org.apache.poi.ss.usermodel CellStyle]))
 
 (defn- load-md-files
   "Load all markdown files in the specified directory,
@@ -55,7 +56,7 @@
                     (.add result ckl))))))
      result))
 
-(defn- gen-rows
+(defn- gen-excel-rows
   "Generate excel rows from parsed markdow files data."
   [^java.util.List parsed]
   (let [rows (atom [])]
@@ -71,14 +72,34 @@
     @rows))
 
 (defn- gen-excel [file-name rows]
-  (let [wb (create-workbook "checklist" rows)]
+  (let [rows (cons ["大类" "小类" "检查点"] rows)
+        sheet-name "checklist"
+        wb (create-workbook sheet-name rows)
+        sheet (select-sheet sheet-name wb)
+        header-row (first (row-seq sheet))
+        style (.createCellStyle wb)
+        len-of-char (fn [n] (* n 256))]
     (do
+      (doto sheet
+        (.setColumnWidth 0 (len-of-char 25))
+        (.setColumnWidth 1 (len-of-char 35))
+        (.setColumnWidth 2 (len-of-char 60))
+        (.createFreezePane 3 1))
+      (doto style
+        (.setWrapText true)
+        (.setVerticalAlignment CellStyle/VERTICAL_CENTER)
+        (.setBorderBottom      CellStyle/BORDER_THIN)
+        (.setBorderLeft        CellStyle/BORDER_THIN)
+        (.setBorderTop         CellStyle/BORDER_THIN)
+        (.setBorderRight       CellStyle/BORDER_THIN))
+      (dorun (map #(set-row-style! % style) (rest (row-seq sheet))))
+      (set-row-style! header-row (create-cell-style! wb {:background :yellow,
+                                                         :font {:bold true}}))
       (save-workbook! file-name wb))))
 
 (defn checklist-to-excel [dir file-name]
   (->> (load-md-files dir)
        (map parse-md-vec)
-       (map gen-rows)
+       (map gen-excel-rows)
        (reduce into [])
        (gen-excel file-name)))
-
